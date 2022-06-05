@@ -86,6 +86,7 @@ class PodRepositoryContext(object):
 
     def __init__(self,
             target_name,
+            git,
             url,
             podspec_url,
             revision,
@@ -102,6 +103,7 @@ class PodRepositoryContext(object):
             src_root = None):
         self.target_name = target_name
         self.url = url
+        self.git = git
         self.podspec_url = podspec_url
         self.revision = revision
         self.strip_prefix = strip_prefix
@@ -171,18 +173,24 @@ INHIBIT_WARNINGS_GLOBAL_COPTS = [
 ]
 
 
-def _fetch_remote_repo(repository_ctx, repo_tool_bin, target_name, url):
+def _fetch_remote_repo(repository_ctx, repo_tool_bin, target_name, url = None, git = None):
     fetch_cmd = [
         repo_tool_bin,
         target_name,
         "fetch",
-        "--url",
-        url,
         "--sub_dir",
         repository_ctx.strip_prefix,
         "--trace",
         "true" if repository_ctx.GetTrace() else "false"
     ]
+
+    if url is not None:
+        fetch_cmd.append("--url")
+        fetch_cmd.append(url)
+
+    if git is not None:
+        fetch_cmd.append("--git")
+        fetch_cmd.append(git)
 
     if repository_ctx.GetRevision() is not None:
         fetch_cmd.append("--revision")
@@ -220,6 +228,8 @@ def _needs_update(invocation_info):
 
 def _load_repo_if_needed(repository_ctx, repo_tool_bin_path):
     url = repository_ctx.url
+    git = repository_ctx.git
+
     target_name = repository_ctx.target_name
     if not url:
         # We allow putting source code in the Vendor/PodName and then initing
@@ -231,8 +241,10 @@ def _load_repo_if_needed(repository_ctx, repo_tool_bin_path):
         _exec(repository_ctx, ["rm", "-rf", repository_ctx.GetPodRootDir()])
     _exec(repository_ctx, ["mkdir", "-p", repository_ctx.GetPodRootDir()])
 
-    if _is_http_url(url) or _is_git_url(url):
-        _fetch_remote_repo(repository_ctx, repo_tool_bin_path, target_name, url)
+    if _is_http_url(url):
+        _fetch_remote_repo(repository_ctx, repo_tool_bin_path, target_name, url = url)
+    elif _is_git_url(git):
+        _fetch_remote_repo(repository_ctx, repo_tool_bin_path, target_name, git = git)
     elif url.startswith("/"):
         _link_local_repo(repository_ctx, target_name, url)
     elif not url.startswith("Vendor"):
@@ -361,6 +373,7 @@ def _update_repo_impl(invocation_info):
 
 def new_pod_repository(name,
             url = None,
+            git = None,
             podspec_url = None,
             commit = None,  # for giturl
             branch = None,  # for giturl
@@ -392,6 +405,8 @@ def new_pod_repository(name,
             - None. If the url is none, we will attempt to init the repository
               without loading source. This is useful for custom Pods that aren't
               provided from a URL.
+
+         git: the git url of this repo.
 
          podspec_url: the podspec url. By default, we will look in the root of
          the repository, and read a .podspec file. This requires having
@@ -448,6 +463,7 @@ def new_pod_repository(name,
 
          is_dynamic_framework: set to True if the pod uses prebuilt dynamic framework(s)
     """
+    assert (url or git) and not (url and git), "Must specify either url or git and not both"
 
     revision = None
     if commit is not None:
@@ -466,6 +482,7 @@ def new_pod_repository(name,
     repository_ctx = PodRepositoryContext(
             target_name = name,
             url = url,
+            git = git,
             podspec_url = podspec_url,
             revision = revision,
             strip_prefix = strip_prefix,
@@ -494,17 +511,23 @@ def _cleanup_pods():
             continue
         shutil.rmtree(full_path)
 
+def _is_starts_with_http(url):
+    return url and (url.startswith("http://") or url.startswith("https://"))
+
 def _is_http_url(url):
-    return url.startswith("http://") or url.startswith("https://")
+    if _is_git_url(url):
+        print("git url should used 'git' instead of 'url'")
+        exit(1)
+    return url and _is_starts_with_http(url)
 
 def _is_git_url(url):
-    return url.startswith("git@")
+    return url and (url.startswith("git@") or (_is_starts_with_http(url) and url.endswith(".git")))
 
 # Build a release of `RepoTools` if needed. Under a release package,
 # the makefile is a noop.
 def _build_repo_tools():
     print("Building PodToBUILD dependencies...")
-    _exec(PodRepositoryContext(None, None, None, None, None, None, None, trace=True), [
+    _exec(PodRepositoryContext(None, None, None, None, None, None, None, None, trace=True), [
         "make",
         "release"],
         os.path.dirname(os.path.dirname(os.path.realpath(__file__))))

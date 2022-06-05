@@ -23,7 +23,7 @@ enum RepoToolsActionValue: String {
 /// Fetch options are command line options for a given fetch
 public struct FetchOptions {
     public let podName: String
-    public let url: String
+    public let url: _URL
     public let trace: Bool
     public let subDir: String?
     public let revision: String?
@@ -77,9 +77,8 @@ public enum SerializedRepoToolsAction {
 
     static func tryParseFetch(args: [String]) -> FetchOptions {
         guard args.count >= 2,
-            /// This is a bit insane ( the argument is --url )
-            let url = UserDefaults.standard.string(forKey: "-url")
-        else {
+                let url = FetchOptions._URL.http(UserDefaults.standard.string(forKey: "-url")) ??
+                FetchOptions._URL.git(UserDefaults.standard.string(forKey: "-git")) else {
             print("Usage: PodSpecName <action> --url <URL> --trace <trace> --sub_dir <sub_dir> --revision <revision>")
             exit(0)
         }
@@ -611,7 +610,7 @@ public enum RepoActions {
         // v1.1.0.zip
         // After unzipping
         // KVOController-1.1.0
-        let testURL = fetchOptions.url.lowercased()
+        let testURL = fetchOptions.url.string.lowercased()
         guard testURL.contains("github") else { return nil }
         let components = testURL.components(separatedBy: "/")
         guard components[components.count - 2] == "archive" else {

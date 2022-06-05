@@ -31,18 +31,24 @@ INHIBIT_WARNINGS_GLOBAL_COPTS = [
     "-Wno-everything",
 ]
 
-def _fetch_remote_repo(repository_ctx, repo_tool_bin, target_name, url):
+def _fetch_remote_repo(repository_ctx, repo_tool_bin, target_name, url = None, git = None):
     fetch_cmd = [
         repo_tool_bin,
         target_name,
         "fetch",
-        "--url",
-        url,
         "--sub_dir",
         repository_ctx.attr.strip_prefix,
         "--trace",
         "true" if repository_ctx.attr.trace else "false"
     ]
+
+    if repository_ctx.attr.url:
+        fetch_cmd.append("--url")
+        fetch_cmd.append(repository_ctx.attr.url)
+
+    if repository_ctx.attr.git:
+        fetch_cmd.append("--git")
+        fetch_cmd.append(repository_ctx.attr.git)
 
     if repository_ctx.attr.revision:
         fetch_cmd.append("--revision")
@@ -85,6 +91,17 @@ def _cli_bool(b):
 REPO_TOOL_NAME = "RepoTool"
 INIT_REPO_PLACEHOLDER = "__INIT_REPO__"
 
+def _is_starts_with_http(url):
+    return url.startswith("http://") or url.startswith("https://")
+
+def _is_http_url(url):
+    if _is_git_url(url):
+        fail("git url should used 'git' instead of 'url'")
+    return url and _is_starts_with_http(url)
+
+def _is_git_url(url):
+    return url and (url.startswith("git@") or (_is_starts_with_http(url) and url.endswith(".git")))
+
 def _impl(repository_ctx):
     if repository_ctx.os.name != "mac os x":
         # No-op on non-mac platforms, since they won't be able to run the RepoTool binary.
@@ -99,6 +116,7 @@ def _impl(repository_ctx):
     # after the source code has been fetched
     target_name = repository_ctx.attr.target_name
     url = repository_ctx.attr.url
+    git = repository_ctx.attr.git
     repo_tools_labels = repository_ctx.attr.repo_tools_labels
     install_script_tpl = repository_ctx.attr.install_script_tpl
     tool_bin_by_name = {}
@@ -109,9 +127,12 @@ def _impl(repository_ctx):
         tool_name = repo_tool_dict[str(tool_label)]
         tool_bin_by_name[tool_name] = repository_ctx.path(tool_label)
 
-    if url.startswith("http") or url.startswith("https") or url.startswith("git@"):
+    if _is_http_url(url):
         _fetch_remote_repo(
-            repository_ctx, tool_bin_by_name[REPO_TOOL_NAME], target_name, url)
+            repository_ctx, tool_bin_by_name[REPO_TOOL_NAME], target_name, url=url)
+    if _is_git_url(url):
+        _fetch_remote_repo(
+            repository_ctx, tool_bin_by_name[REPO_TOOL_NAME], target_name, git=git)
     else:
         _link_local_repo(repository_ctx, target_name, url)
 
@@ -202,7 +223,8 @@ pod_repo_ = repository_rule(
     local=False,
     attrs={
         "target_name": attr.string(mandatory=True),
-        "url": attr.string(mandatory=True),
+        "url": attr.string(),
+        "git": attr.string(),
         "podspec_url": attr.string(),
         "revision": attr.string(),
         "podspec_file": attr.label(),
@@ -221,8 +243,9 @@ pod_repo_ = repository_rule(
 )
 
 def new_pod_repository(name,
-                       url,
-                       owner="",
+                       url = None,
+                       git = None,
+                       owner = "",
                        podspec_url=None,
                        commit = None,  # for giturl
                        branch = None,  # for giturl
@@ -246,6 +269,8 @@ def new_pod_repository(name,
          name: the name of this repo
 
          url: the url of this repo
+
+         git: the git url of this repo.
 
          podspec_url: an override podspec file. Can be either a URL or a Bazel
          label.
@@ -313,6 +338,10 @@ def new_pod_repository(name,
 
          is_dynamic_framework: set to True if the pod uses prebuilt dynamic framework(s)
     """
+
+    if url == None and git == None or url != None and git != None:
+        fail("Must specify either url or git and not both")
+
     if generate_module_map == None:
         generate_module_map = enable_modules
 
@@ -334,11 +363,12 @@ def new_pod_repository(name,
         revision += "tag" + tag + ";"
     if sub_modules:
         revision += "submodules:true;"
-    
+
     pod_repo_(
         name=name,
         target_name=name,
         url=url,
+        git=git,
         podspec_url=podspec_url,
         revision=revision,
         podspec_file=podspec_file,

@@ -1,6 +1,6 @@
 //
 //  Git.swift
-//  
+//
 //
 //  Created by Crazy凡 on 2022/5/10.
 //
@@ -21,12 +21,12 @@ private struct GitOptions {
     }
 
     init?(_ options: FetchOptions) {
-        guard GitOptions.isGitURL(options.url) else {
+        guard case let .git(gitURL) = options.url else {
             return nil
         }
 
         self.podName = options.podName
-        self.url = options.url
+        self.url = gitURL
 
         if let revision = options.revision, !revision.isEmpty {
             let options: [Options: String] = revision.split(separator: ";")
@@ -46,10 +46,6 @@ private struct GitOptions {
         } else {
             self.options = [.branch: "master"]
         }
-    }
-
-    private static func isGitURL(_ url: String) -> Bool {
-        return url.hasPrefix("git@")
     }
 }
 
@@ -151,7 +147,7 @@ private extension GitDownloader {
                 shallowClone: shallowClone,
                 targetPath: targetPath
             ).joined(separator: " ")
-                            
+
             return shell.command(CommandBinary.sh, arguments: ["-c", gitCommand])
         }
 

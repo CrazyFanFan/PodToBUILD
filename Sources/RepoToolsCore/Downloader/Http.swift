@@ -13,14 +13,10 @@ private struct HttpOptions {
     let url: String
 
     init?(_ options: FetchOptions) {
-        guard HttpOptions.isHttpURL(options.url) else { return nil }
+        guard case let .http(httpURL) = options.url else { return nil }
 
         self.podName = options.podName
-        self.url = options.url
-    }
-
-    private static func isHttpURL(_ url: String) -> Bool {
-        return url.hasPrefix("http://") || url.hasPrefix("https://")
+        self.url = httpURL
     }
 }
 

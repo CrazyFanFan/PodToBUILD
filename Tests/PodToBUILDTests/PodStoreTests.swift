@@ -49,7 +49,7 @@ class PodStoreTests: XCTestCase {
         RepoActions.fetch(shell: shell, fetchOptions: fetchOpts)
         XCTAssertTrue(
             shell.executed(encodedCommand:
-                LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url)!, toFile: downloadPath)
+                            LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url.string)!, toFile: downloadPath)
             )
         )
     }
@@ -145,7 +145,7 @@ class PodStoreTests: XCTestCase {
 
         RepoActions.fetch(shell: shell, fetchOptions: fetchOpts)
         XCTAssertTrue(shell.executed(encodedCommand:
-                LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url)!, toFile: downloadPath)
+                                        LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url.string)!, toFile: downloadPath)
         ))
         XCTAssertTrue(shell.executed(encodedCommand: extract.0))
     }
@@ -158,7 +158,7 @@ class PodStoreTests: XCTestCase {
         
         RepoActions.fetch(shell: shell, fetchOptions: fetchOpts)
         XCTAssertFalse(shell.executed(encodedCommand:
-                LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url)!, toFile: downloadPath)
+                                        LogicalShellContext.encodeDownload(url: URL(string: fetchOpts.url.string)!, toFile: downloadPath)
         ))
     }
 }
